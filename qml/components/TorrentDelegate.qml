@@ -103,6 +103,7 @@ ListItem {
         if (selectionPanel.openPanel) {
             selectionModel.select(model.index)
         } else {
+            notification.finishedTorrent(torrent.name, torrent.hashString, true)
             pageStack.push("TorrentPropertiesPage.qml", {"torrentHash": torrent.hashString,
                                                          "torrent": torrent})
         }

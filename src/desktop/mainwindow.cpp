@@ -70,6 +70,7 @@
 #include "../utils.h"
 #include "aboutdialog.h"
 #include "addtorrentdialog.h"
+#include "desktoputils.h"
 #include "mainwindowsidebar.h"
 #include "mainwindowstatusbar.h"
 #include "remotedirectoryselectionwidget.h"
@@ -689,6 +690,7 @@ namespace tremotesf
 
                 dialog->show();
             }
+            showFinishedNotification({torrent->name()});
         }
     }
 
@@ -1044,8 +1046,8 @@ namespace tremotesf
     {
         const QModelIndexList selectedRows(mTorrentsView->selectionModel()->selectedRows());
         for (const QModelIndex& index : selectedRows) {
-            Utils::openFile(mRpc->localTorrentFilesPath(mTorrentsModel->torrentAtIndex(mTorrentsProxyModel->sourceIndex(index))),
-                            this);
+            desktoputils::openFile(mRpc->localTorrentFilesPath(mTorrentsModel->torrentAtIndex(mTorrentsProxyModel->sourceIndex(index))),
+                                   this);
         }
     }
 
@@ -1060,6 +1062,6 @@ namespace tremotesf
             files.push_back(mRpc->localTorrentFilesPath(torrent));
         }
 
-        Utils::selectFilesInFileManager(files, this);
+        desktoputils::selectFilesInFileManager(files, this);
     }
 }
