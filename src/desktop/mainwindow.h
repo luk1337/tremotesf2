@@ -39,6 +39,7 @@ namespace tremotesf
     class IpcServer;
     class MainWindowSideBar;
     class Rpc;
+    class ShortcutFilter;
     class TorrentsModel;
     class TorrentPropertiesDialog;
     class TorrentsProxyModel;
@@ -99,6 +100,8 @@ namespace tremotesf
         TorrentsView* mTorrentsView;
         std::unordered_map<int, TorrentPropertiesDialog*> mTorrentsDialogs;
 
+        ShortcutFilter* mShortcutEventFilter = nullptr;
+
         QAction* mConnectAction = nullptr;
         QAction* mDisconnectAction = nullptr;
         QAction* mAddTorrentFileAction = nullptr;
@@ -126,6 +129,10 @@ namespace tremotesf
 #ifdef QT_DBUS_LIB
         OrgFreedesktopNotificationsInterface* mNotificationsInterface = nullptr;
 #endif
+
+        // QObject interface
+    public:
+        bool event(QEvent* event) override;
     };
 }
 

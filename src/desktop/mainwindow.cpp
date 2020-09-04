@@ -156,6 +156,24 @@ namespace tremotesf
         };
     }
 
+    class ShortcutFilter : public QObject
+    {
+    public:
+        explicit ShortcutFilter(QObject* parent = nullptr) : QObject(parent) {}
+
+        bool eventFilter(QObject* watched, QEvent* event) override
+        {
+            if (event->type() == QEvent::Shortcut) {
+                const auto shortcutEvent = static_cast<QShortcutEvent*>(event);
+                lastShortcut = shortcutEvent->key();
+                qInfo() << "shortcut filter" << shortcutEvent->key() << shortcutEvent->isAmbiguous();
+            }
+            return false;
+        }
+
+        QKeySequence lastShortcut;
+    };
+
     MainWindow::MainWindow(IpcServer* ipcServer, const QStringList& files, const QStringList& urls)
         : mRpc(new Rpc(this)),
           mTorrentsModel(new TorrentsModel(mRpc, this)),
@@ -325,6 +343,8 @@ namespace tremotesf
         Settings::instance()->setSplitterState(mSplitter->saveState());
 
         mTrayIcon->hide();
+
+        qApp->removeEventFilter(mShortcutEventFilter);
     }
 
     QSize MainWindow::sizeHint() const
@@ -349,6 +369,9 @@ namespace tremotesf
 
     void MainWindow::setupActions()
     {
+        mShortcutEventFilter = new ShortcutFilter(this);
+        qApp->installEventFilter(mShortcutEventFilter);
+
         mConnectAction = new QAction(qApp->translate("tremotesf", "&Connect"), this);
         QObject::connect(mConnectAction, &QAction::triggered, mRpc, &Rpc::connect);
 
@@ -423,7 +446,7 @@ namespace tremotesf
         mTorrentMenu->addSeparator();
 
         mRemoveTorrentAction = mTorrentMenu->addAction(QIcon::fromTheme(QLatin1String("list-remove")), qApp->translate("tremotesf", "&Remove"));
-        mRemoveTorrentAction->setShortcut(QKeySequence::Delete);
+        mRemoveTorrentAction->setShortcuts({QKeySequence::Delete, QKeySequence(Qt::SHIFT + Qt::Key_Delete)});
         QObject::connect(mRemoveTorrentAction, &QAction::triggered, this, &MainWindow::removeSelectedTorrents);
 
         QAction* setLocationAction = mTorrentMenu->addAction(qApp->translate("tremotesf", "Set &Location"));
@@ -717,6 +740,10 @@ namespace tremotesf
         dialog.setDefaultButton(QMessageBox::Cancel);
 
         QCheckBox deleteFilesCheckBox(qApp->translate("tremotesf", "Also delete the files on the hard disk"));
+        if (mRemoveTorrentAction->shortcuts().contains(mShortcutEventFilter->lastShortcut)) {
+            deleteFilesCheckBox.setChecked(mShortcutEventFilter->lastShortcut != QKeySequence::Delete);
+        }
+
         dialog.setCheckBox(&deleteFilesCheckBox);
 
         const QVariantList ids(mTorrentsModel->idsFromIndexes(mTorrentsProxyModel->sourceIndexes(mTorrentsView->selectionModel()->selectedRows())));
@@ -1069,5 +1096,14 @@ namespace tremotesf
         }
 
         desktoputils::selectFilesInFileManager(files, this);
+    }
+
+    bool MainWindow::event(QEvent* event)
+    {
+        if (event->type() == QEvent::Shortcut) {
+            const auto shortcutEvent = static_cast<QShortcutEvent*>(event);
+            qInfo() << "shortcut event" << shortcutEvent->key() << shortcutEvent->isAmbiguous();
+        }
+        return QMainWindow::event(event);
     }
 }
