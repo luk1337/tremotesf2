@@ -3,7 +3,7 @@ name: CMake
 on:
   push:
     branches:
-      - actions-test
+      - equeim-patch-1
 
 env:
   # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
