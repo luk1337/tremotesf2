@@ -34,7 +34,9 @@ namespace tremotesf
     namespace
     {
         inline QString chopTrailingSeparator(QString directory) {
+            qInfo() << "chopTrailingSeparator:" << directory;
             if (directory.endsWith(QLatin1Char('/'))) {
+                qInfo("chopped");
                 directory.chop(1);
             }
             return directory;
@@ -99,6 +101,7 @@ namespace tremotesf
         if (wasEmpty && !currentServerAddTorrentDialogDirectories.empty()) {
             Servers::instance()->setCurrentServerAddTorrentDialogDirectories(currentServerAddTorrentDialogDirectories);
         }
+        qInfo() << currentServerAddTorrentDialogDirectories;
 
         textComboBox()->clear();
         textComboBox()->addItems(currentServerAddTorrentDialogDirectories);
