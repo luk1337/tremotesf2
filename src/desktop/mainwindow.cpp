@@ -236,22 +236,13 @@ namespace tremotesf
         mToolBarAction->setChecked(!mToolBar->isHidden());
 
         QObject::connect(ipcServer, &IpcServer::windowActivationRequested, this, [=](const auto&, const auto& startupNoficationId) {
-            showWindow(startupNoficationId);
+            showWindow(true, startupNoficationId);
         });
 
         QObject::connect(ipcServer, &IpcServer::torrentsAddingRequested, this, [=](const auto& files, const auto& urls) {
             if (mRpc->isConnected()) {
-                const bool hidden = isHidden();
-                showWindow();
-                if (hidden) {
-                    runAfterDelay([=] {
-                        showAddTorrentFileDialogs(files);
-                        showAddTorrentLinkDialogs(urls);
-                    });
-                } else {
-                    showAddTorrentFileDialogs(files);
-                    showAddTorrentLinkDialogs(urls);
-                }
+                showAddTorrentFileDialogs(files);
+                showAddTorrentLinkDialogs(urls);
             }
         });
 
@@ -260,17 +251,8 @@ namespace tremotesf
                 static bool first = true;
                 if (first) {
                     if (!files.isEmpty() || !urls.isEmpty()) {
-                        setWindowState(windowState() & ~Qt::WindowMinimized);
-                        if (isHidden()) {
-                            show();
-                            runAfterDelay([=] {
-                                showAddTorrentFileDialogs(files);
-                                showAddTorrentLinkDialogs(urls);
-                            });
-                        } else {
-                            showAddTorrentFileDialogs(files);
-                            showAddTorrentLinkDialogs(urls);
-                        }
+                        showAddTorrentFileDialogs(files);
+                        showAddTorrentLinkDialogs(urls);
                     }
                     first = false;
                 }
@@ -374,18 +356,10 @@ namespace tremotesf
 
         mAddTorrentLinkAction = new QAction(QIcon::fromTheme(QLatin1String("insert-link")), qApp->translate("tremotesf", "Add Torrent &Link..."), this);
         QObject::connect(mAddTorrentLinkAction, &QAction::triggered, this, [=] {
-            setWindowState(windowState() & ~Qt::WindowMinimized);
-            auto showDialog = [=] {
-                auto dialog = new AddTorrentDialog(mRpc, QString(), AddTorrentDialog::Mode::Url, this);
-                dialog->setAttribute(Qt::WA_DeleteOnClose);
-                dialog->show();
-            };
-            if (isHidden()) {
-                show();
-                runAfterDelay(showDialog);
-            } else {
-                showDialog();
-            }
+            auto dialog = new AddTorrentDialog(mRpc, QString(), AddTorrentDialog::Mode::Url, this);
+            dialog->setAttribute(Qt::WA_DeleteOnClose);
+            dialog->show();
+            showWindow(false);
         });
         mConnectionDependentActions.push_back(mAddTorrentLinkAction);
 
@@ -528,52 +502,61 @@ namespace tremotesf
 
     void MainWindow::addTorrentsFiles()
     {
-        setWindowState(windowState() & ~Qt::WindowMinimized);
+        auto fileDialog = new QFileDialog(this,
+                                          qApp->translate("tremotesf", "Select Files"),
+                                          QString(),
+                                          qApp->translate("tremotesf", "Torrent Files (*.torrent)"));
+        fileDialog->setAttribute(Qt::WA_DeleteOnClose);
+        fileDialog->setFileMode(QFileDialog::ExistingFiles);
 
-        auto showDialog = [=] {
-            auto fileDialog = new QFileDialog(this,
-                                              qApp->translate("tremotesf", "Select Files"),
-                                              QString(),
-                                              qApp->translate("tremotesf", "Torrent Files (*.torrent)"));
-            fileDialog->setAttribute(Qt::WA_DeleteOnClose);
-            fileDialog->setFileMode(QFileDialog::ExistingFiles);
-
-            QObject::connect(fileDialog, &QFileDialog::accepted, this, [=] {
-                showAddTorrentFileDialogs(fileDialog->selectedFiles());
-            });
+        QObject::connect(fileDialog, &QFileDialog::accepted, this, [=] {
+            showAddTorrentFileDialogs(fileDialog->selectedFiles());
+        });
 
 #ifdef Q_OS_WIN
-            fileDialog->open();
+        fileDialog->open();
 #else
-            fileDialog->show();
+        fileDialog->show();
 #endif
-        };
 
-        if (isHidden()) {
-            show();
-            runAfterDelay(showDialog);
-        } else {
-            showDialog();
+        showWindow(false);
+
+        if (!fileDialog->windowHandle()->isVisible()) {
+            // QWidget if not visible, we are probably showing platform dialog
+            // If platform dialog is QWidget-based, activate its window
+            for (auto widget : qApp->topLevelWidgets()) {
+                if (widget != fileDialog && widget->windowType() == Qt::Dialog && widget->metaObject()) {
+                    const auto className = QString(widget->metaObject()->className()).toLower();
+                    if (className.contains("filedialog")) {
+                        qInfo() << "activating" << widget;
+                        widget->activateWindow();
+                    }
+                }
+            }
         }
     }
 
     void MainWindow::showAddTorrentFileDialogs(const QStringList& files)
     {
-        for (const QString& filePath : files) {
-            auto dialog = new AddTorrentDialog(mRpc, filePath, AddTorrentDialog::Mode::File, this);
-            dialog->setAttribute(Qt::WA_DeleteOnClose);
-            dialog->show();
-            dialog->activateWindow();
+        if (!files.isEmpty()) {
+            for (const QString& filePath : files) {
+                auto dialog = new AddTorrentDialog(mRpc, filePath, AddTorrentDialog::Mode::File, this);
+                dialog->setAttribute(Qt::WA_DeleteOnClose);
+                dialog->show();
+            }
+            showWindow(false);
         }
     }
 
     void MainWindow::showAddTorrentLinkDialogs(const QStringList& urls)
     {
-        for (const QString& url : urls) {
-            auto dialog = new AddTorrentDialog(mRpc, url, AddTorrentDialog::Mode::Url, this);
-            dialog->setAttribute(Qt::WA_DeleteOnClose);
-            dialog->show();
-            dialog->activateWindow();
+        if (!urls.isEmpty()) {
+            for (const QString& url : urls) {
+                auto dialog = new AddTorrentDialog(mRpc, url, AddTorrentDialog::Mode::Url, this);
+                dialog->setAttribute(Qt::WA_DeleteOnClose);
+                dialog->show();
+            }
+            showWindow(false);
         }
     }
 
@@ -960,7 +943,7 @@ namespace tremotesf
         });
     }
 
-    void MainWindow::showWindow(const QByteArray& newStartupNotificationId)
+    void MainWindow::showWindow(bool activate, const QByteArray& newStartupNotificationId)
     {
 #ifdef QT_DBUS_LIB
         if (!newStartupNotificationId.isEmpty()) {
@@ -982,7 +965,9 @@ namespace tremotesf
                 window->show();
             }
         }
-        activateWindow();
+        if (activate) {
+            activateWindow();
+        }
     }
 
     void MainWindow::hideWindow()
